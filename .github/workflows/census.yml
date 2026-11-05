@@ -1,0 +1,141 @@
+name: census
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # macOS 27.2 (26B123) full update asset, as listed by Apple's Pallas
+  # service. Same file (SHA-1 name, 17,780,243,047 bytes) that ships inside
+  # InstallAssistant.pkg's SharedSupport.dmg.
+  ASSET_URL: https://updates.cdn-apple.com/2026FallFCS/8b698022-d1cf-4fc5-a16d-7c0ffeda5797/com_apple_MobileAsset_MacSoftwareUpdate/a7b1a7ae5e3e89909b529db2419f827493fa9af5.zip
+  IPSW_VER: 3.1.739
+  IPSW_SHA256: c09e8eba02c332f5b50d15f94383e59dd35646d70f6ea9e78d185e9afda6abc2
+
+jobs:
+  host:
+    runs-on: xcode-27
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Host facts
+        run: |
+          mkdir -p out
+          { sw_vers; echo "arch: $(uname -m)"; sysctl -n machdep.cpu.brand_string; df -h /; } | tee out/host.txt
+      - name: lzraven decode test
+        run: |
+          set +e
+          python3 tools/remotezip.py "$ASSET_URL" --list > out/asset-zip-list.txt
+          python3 tools/remotezip.py "$ASSET_URL" work AssetData/payloadv2/payload.000 AssetData/payloadv2/fixup.manifest
+          echo "--- payload.000 magic: $(head -c 4 work/payload.000)" | tee -a out/host.txt
+          aa list -i work/payload.000 > work/p0.txt 2>&1
+          echo "--- aa list payload.000 exit status: $?" | tee -a out/host.txt
+          echo "--- entries listed: $(wc -l < work/p0.txt)" | tee -a out/host.txt
+          head -15 work/p0.txt | tee -a out/host.txt
+          aa list -i work/fixup.manifest > work/fixup.txt 2>&1
+          echo "--- fixup.manifest exit status: $? entries: $(wc -l < work/fixup.txt)" | tee -a out/host.txt
+          gzip -c work/fixup.txt > out/fixup-manifest-list.txt.gz
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: host
+          path: out/
+
+  cryptex:
+    runs-on: xcode-27
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [cryptex-system-rosetta, cryptex-system-arm64e]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Make room
+        run: bash tools/freedisk.sh
+      - name: Get ipsw (checksum pinned)
+        run: |
+          curl -sSL -o ipsw.tgz "https://github.com/blacktop/ipsw/releases/download/v${IPSW_VER}/ipsw_${IPSW_VER}_macOS_arm64.tar.gz"
+          echo "${IPSW_SHA256}  ipsw.tgz" | shasum -a 256 -c
+          mkdir -p ipswbin && tar -xzf ipsw.tgz -C ipswbin && ./ipswbin/ipsw version
+      - name: Download patch from Apple CDN
+        run: |
+          python3 tools/remotezip.py "$ASSET_URL" work "AssetData/payloadv2/image_patches/${{ matrix.image }}"
+          df -h /
+      - name: Rebuild image
+        run: |
+          ./ipswbin/ipsw ota patch rsr --cryptex "work/${{ matrix.image }}" -V
+          ls -la work
+          rm -f "work/${{ matrix.image }}"
+          df -h /
+      - name: Mount and census
+        run: |
+          IMG=$(ls work/*.dmg | head -1)
+          mkdir -p out mnt
+          hdiutil attach -readonly -nobrowse -noverify -mountpoint "$PWD/mnt" "$IMG" | tee "out/${{ matrix.image }}-attach.txt"
+          (cd mnt && sudo find . -xdev -ls) | gzip > "out/${{ matrix.image }}-files.txt.gz"
+          sudo python3 tools/census.py mnt "out/${{ matrix.image }}.tsv" | tee "out/${{ matrix.image }}-counts.txt"
+          sudo find mnt -xdev -type f -name 'dyld_shared_cache_*' | grep -E 'dyld_shared_cache_[A-Za-z0-9_]+$' > work/caches.txt || true
+          cat work/caches.txt
+          while read -r c; do
+            b=$(echo "${c#mnt/}" | tr / _)
+            ./ipswbin/ipsw dyld info "$c" --dylibs > "out/${{ matrix.image }}-$b-dyld-images.txt" 2>&1 || true
+          done < work/caches.txt
+          hdiutil detach mnt || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ${{ matrix.image }}
+          path: out/
+
+  payload:
+    runs-on: xcode-27
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [0, 1, 2, 3, 4, 5, 6]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode and census payload.000-027, four per job
+        run: |
+          mkdir -p out work
+          for i in 0 1 2 3; do
+            n=$(printf '%03d' $(( ${{ matrix.group }} * 4 + i )))
+            echo "::group::payload.$n"
+            python3 tools/remotezip.py "$ASSET_URL" work "AssetData/payloadv2/payload.$n"
+            mkdir -p "work/x$n"
+            set +e
+            sudo aa extract -i "work/payload.$n" -d "work/x$n" > "out/payload.$n-aa.log" 2>&1
+            echo "aa extract exit status $?" | tee -a "out/payload.$n-aa.log"
+            set -e
+            (cd "work/x$n" && sudo find . -xdev -ls) | gzip > "out/payload.$n-files.txt.gz"
+            sudo python3 tools/census.py "work/x$n" "out/payload.$n.tsv" | tee "out/payload.$n-counts.txt"
+            sudo rm -rf "work/x$n" "work/payload.$n"
+            df -h / | tail -1
+            echo "::endgroup::"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: payload-${{ matrix.group }}
+          path: out/
+
+  report:
+    needs: [host, cryptex, payload]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: in
+      - name: Combine
+        run: |
+          python3 tools/aggregate.py in report
+          cat report/SUMMARY.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: census-report
+          path: report/

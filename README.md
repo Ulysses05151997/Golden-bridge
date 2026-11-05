@@ -23,10 +23,19 @@ Nothing we built ever booted. Every figure is a measurement of a file, not of a 
 
 - **[Position paper](POSITION-PAPER.md)** ([PDF](POSITION-PAPER.pdf)): what we tried, what we found, why we stopped, and the map for anyone who wants to try.
 - **[T2 recovery](T2-RECOVERY.md)**: the boot loop that took the MacBook down, how a DFU restore fixed it, and five rules for anyone experimenting on a T2 Mac.
+- **[The Golden Bridge look](docs/GOLDEN-GATE.md)** and its scripts in [`tools/goldengate/`](tools/goldengate/): the cosmetic layer that is on the machine now. Gold wallpaper (original art), dark mode with a gold accent, a tuned Dock, a gold terminal prompt, and a small panel that appears when About This Mac opens and says, in plain words, that the kernel is unmodified Tahoe and this is a project label, not an OS version. Everything stays in your home folder and user preferences. Nothing needs root; nothing touches the sealed system, the boot policy or the firmware. `restore-tahoe.sh` reverses it.
+- **The census** in [`tools/`](tools/) and [`.github/workflows/census.yml`](.github/workflows/census.yml): the measurement behind the table above. It reads Apple's macOS 27.2 update straight from Apple's CDN on a GitHub `xcode-27` runner, decodes it, reads the header of every executable and records which CPUs it is built for. It publishes text only: file paths, sizes and architectures. Run it yourself with **Actions → census → Run workflow**.
+
+### Applying the look
+
+    bash tools/goldengate/apply-golden-gate.sh     # apply
+    bash tools/goldengate/restore-tahoe.sh         # undo
+
+Two honest notes. The wallpaper step in `apply-golden-gate.sh` uses the legacy desktop preference, which [`docs/GOLDEN-GATE.md`](docs/GOLDEN-GATE.md) reports does not take effect on 26.7.2; set `~/Pictures/GoldenGate.jpg` as the wallpaper in System Settings instead. The About panel is `tools/goldengate/GoldenBridge.swift`; the build, signing and LaunchAgent steps are in the same document. A packaged installer is the next thing to add.
 
 ## What's not here
 
-No Apple software, no patches and no build tooling. This repo is text only. The full technical report stays private.
+No Apple software. No kernel, driver or kernel-collection tooling, and no patches of any kind. The full technical report stays private.
 
 ## Why we stopped
 
