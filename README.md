@@ -72,9 +72,10 @@ and uses only functions Tahoe already has will simply run, with nothing
 disabled, nothing unsealed and no administrator password.
 
 We do not yet know which programs those are, and nobody has measured it. Every
-check we published runs 27.2's programs against 27.2's own libraries. The run
-that answers this question checks 27.2's Intel programs against **Tahoe's**
-libraries, and it is the next thing we are building. It needs no Apple software
+check we published runs the other way round: Tahoe's Intel programs looked up in
+macOS 27.2's libraries, which is the question a transplant asks. The run that
+answers this one goes in reverse — 27.2's Intel programs looked up in **Tahoe's**
+libraries — and it is the next thing we are building. It needs no Apple software
 in this repository and it cannot harm a machine: it reads symbol names and
 prints a list.
 

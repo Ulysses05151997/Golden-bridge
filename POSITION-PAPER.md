@@ -168,12 +168,16 @@ is to say the three format questions above are answered by Apple rather than
 asked of us. Section 5's compatibility line already permits exactly this.
 
 What we do not know is which programs those are, and we never measured it. Every
-link check in this project runs 27.2's programs against 27.2's own libraries.
-The run that answers this question checks 27.2's Intel programs against
-**Tahoe's** libraries, program by program. It needs no Apple software in any
-repository, it writes nothing to any machine, and its output is the list of
-macOS 27 features this Mac can actually have. That measurement is the next piece
-of work.
+link check in this project runs in the transplant direction: Tahoe's Intel
+programs, dumped on the Mac, looked up in the exports of 27.2's x86_64
+libraries. That answers whether 27.2 can host what we borrow from Tahoe. The
+question here is the reverse — 27.2's Intel programs looked up in Tahoe's
+libraries, program by program — and it swaps both sides of the check, so it is
+new work rather than a re-run. The import side can be dumped in CI from the 27.2
+payload these workflows already fetch; the export side needs Tahoe's x86_64
+cache. It needs no Apple software in any repository, it writes nothing to any
+machine, and its output is the list of macOS 27 features this Mac can actually
+have. That measurement is the next piece of work.
 
 Here is the map. If you can get past section 2 with data that is not in the files, show your work.
 
@@ -192,7 +196,8 @@ The version string itself was tested rather than assumed. It cannot be changed w
 **One accounting I have not done.** What would 27 actually give this machine? Most of what Apple showed needs Apple silicon anyway. If the prize was small even on paper, that belongs in this paper too. Someone should do that count. It may be me.
 
 *8 November 2026: that count now has a method.* Section 4 describes it — check
-27.2's Intel programs against Tahoe's libraries rather than against 27.2's own.
+27.2's Intel programs against Tahoe's libraries, the reverse of every check
+published here.
 Every program that comes back clean is a macOS 27 feature this Mac can have
 today, inside the line written in the paragraph above: per application, in user
 space, nothing system-wide, nothing that needs SIP off. Every program that comes
