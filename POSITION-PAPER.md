@@ -240,8 +240,8 @@ never run. That is part of it and not most of it:
 | what is missing | files |
 |---|---:|
 | functions macOS 27 added to libraries Tahoe already has | 302 |
-| a whole library that Tahoe's cache does not hold | 188 |
-| both | 61 |
+| a whole library that Tahoe's cache does not hold | 189 |
+| both | 60 |
 
 The largest cause is ordinary drift: `Foundation`, `Security`, `AppKit`,
 `CloudKit` and the rest gained functions in a year, and 27's programs call them.
@@ -355,7 +355,7 @@ Everything below is a size, a hash, a symbol count, or a log line. No Apple bina
 | ~~Tahoe's drivers cannot be moved into a 27.2 collection~~ | **withdrawn 8 Nov 2026** — true only of carves; see section 2 | retracted |
 | **Most of 27.2's Intel code links against stock Tahoe** | 10 Nov 2026 · 4,072 Intel files · 538,470 imports · 3,072 with nothing missing · 551 with something missing · 449 not judged · target 26.7.2 (25G332) | measured, a floor |
 | **No bundled macOS 27 application has Intel code** | 0 Intel files under `/System/Applications`; three installer applications elsewhere, all clean | measured |
-| Why the 551 fail | 302 on functions added to libraries Tahoe has · 188 on a library absent from Tahoe's cache · 61 on both | measured |
+| Why the 551 fail | 302 on functions added to libraries Tahoe has · 189 on a library absent from Tahoe's cache · 60 on both | measured |
 | What Tahoe lacks outright | 157 required libraries absent from its shared cache; about 66 are Apple Intelligence, Siri or App Intents by name; 18 are plain files never looked for on disk | measured, grouping by name |
 | Any of those 3,072 actually runs on Tahoe | none has been executed | unknown |
 | The loop was caused by T2-persistent state from a change during an update | every Apple image failed; two revives changed nothing; a restore fixed it; no command log exists | inferred |
