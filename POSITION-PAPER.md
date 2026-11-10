@@ -10,7 +10,9 @@ Golden Fleece was a joint venture between two AIs and one OI (original intellige
 
 ## The position
 
-Apple dropped the 2019 16-inch MacBook Pro in macOS 27. We asked a narrow question: how much Intel code is still inside 27.2, and can it be assembled into something that boots this machine? We measured the answer. The kernel is real. The userspace is mostly Intel. The early boot path links clean. The drivers cannot be joined to any of it, and that is a fact about the files Apple ships, not a bug in anyone's tooling.
+Apple dropped the 2019 16-inch MacBook Pro in macOS 27. We asked a narrow question: how much Intel code is still inside 27.2, and can it be assembled into something that boots this machine? We measured the answer. The kernel is real. The userspace is mostly Intel. The early boot path links clean. The drivers can be joined to it — we built a 183-entry kernel collection out of 27.2 and Tahoe code — with one exception, and the exception is the driver for the T2 itself.
+
+*Revised 8 November 2026.* The sentence above used to read "the drivers cannot be joined to any of it, and that is a fact about the files Apple ships." Section 2 explains why that was wrong, and what is true instead.
 
 Nothing we built ever booted. Every claim in this paper is a measurement of a file, not of a system that ran.
 
@@ -36,7 +38,9 @@ There was a second design from the start: keep Tahoe's kernel and its signed col
 
 **The drivers were not obviously impossible.** The 33 borrowed drivers declare 1,031 library dependencies with zero real version conflicts. Across 12,887 undefined symbols, exactly two do not resolve, and one of those was shimmed.
 
-**A collection can be built, and the drivers can be recovered.** After the erase, with no root and five silent failure modes identified and worked around, a 25-entry collection of genuine 27.2 code linked at 26,132,480 bytes, exit code 0. All 33 Tahoe drivers were carved back out of the live system as real x86_64 code, zero missing.
+**A mixed collection was built, before the erase.** Milestone `c9980cd`: `BootKernelExtensions.kc` at 54,870,016 bytes with 118 entries, `SystemKernelExtensions.kc` at 38,830,080 bytes with 65 entries, 183 bundle identifiers in all. 116 of the 182 requested drivers landed in boot, 65 in sys, none in both. A later build reproduced the same bytes. Every Tahoe driver on the borrow list was in that link, including `AppleACPIPlatform`, `AppleAPIC`, `AppleSMBIOS`, the whole USB stack and all six AMD drivers. They linked because they came from ordinary `.kext` bundles in a Kernel Debug Kit, and a bundle starts at address zero. **The only requested identifier absent from both collections was `com.apple.driver.AppleCyrus`.**
+
+**A collection can be built without the Kernel Debug Kits too, and the drivers can be recovered.** After the erase, with no root and five silent failure modes identified and worked around, a 25-entry collection of genuine 27.2 code linked at 26,132,480 bytes, exit code 0. All 33 Tahoe drivers were carved back out of the live system as real x86_64 code, zero missing.
 
 **The wall.** The first carved Tahoe driver offered to a 27.2 collection was refused:
 
@@ -47,7 +51,35 @@ cannot be placed in kernel collection because: Has load address
 
 A driver that can be linked into a collection starts at address zero. A driver carved from a collection Apple already linked carries the absolute addresses it held inside the running kernel. When Apple links a collection, it discards the per-driver relocation stream. The attribution of which pointer belonged to which driver, and what it pointed at before the addresses were baked in, is gone. For AppleAPIC that is 244 of 335 pointer sites with no recoverable target. Four ways around it were tried and recorded. None worked. The bytes are not in the file.
 
-That is the finding. Tahoe's drivers cannot be moved into a 27.2 collection because the information needed to do it does not exist in anything Apple ships.
+**Correction, 8 November 2026.** The sentence that stood here said: *Tahoe's
+drivers cannot be moved into a 27.2 collection because the information needed to
+do it does not exist in anything Apple ships.* That is wrong, and the handoff
+notes in this project disprove it. It is true of a driver **carved out of a
+linked collection**. It is not true of the drivers themselves. The 183-entry
+collection above was built from Kernel Debug Kit bundles, and 32 of the 33
+borrowed drivers linked without complaint. `AppleAPIC` is on that borrow list;
+it never needed carving, and the 244 figure measures a carve of it, not what
+Apple ships.
+
+Why the rebuild hit a wall anyway: the DFU restore of 1 November destroyed the
+expanded Kernel Debug Kits along with everything else on the machine. The
+rebuild had no bundles left, so it carved all 33 out of the freshly reinstalled
+Tahoe's live collections — and every carve was refused for the reason above. We
+generalised a lost-toolchain problem into a claim about Apple's files.
+
+So the finding, stated correctly and more narrowly:
+
+**`AppleCyrus` cannot be moved.** It is the T2's SEP driver, and Apple ships it
+only as an entry inside an already-linked kernel collection. It is in no Kernel
+Debug Kit we have examined — not 26B118, not the 26B123 tree, not 25G241's 905
+kext directories. Carved out, it is `MH_NOUNDEFS | MH_DYLIB_IN_CACHE` with no
+external relocations and no chained fixups, and `kmutil create` silently omits
+it. Every other driver this Mac loads can be obtained as a bundle, and bundles
+link.
+
+The honest shape of the remaining problem is therefore one driver and one
+question: whether a Mac with a T2 will come up far enough to be useful with its
+SEP driver missing. We never got to ask it.
 
 ---
 
@@ -63,7 +95,20 @@ The project stopped because the ways forward crossed a line. Four reasons.
 
 **When all is said and done, you get an operating system that will not run well.** Even if it booted: 1,163 binaries that need Tahoe copies, 427 missing symbols in desktop programs, two GPU stacks running on borrowed drivers, and nobody running quality assurance. Software compatibility would be an ongoing problem with no end.
 
-**Who will support it?** The people who have run newer macOS on dropped Macs for a decade have not shipped 27 on Intel and have lost three developers this year. A one-person fork of a thing they will not do has a support base of one.
+**Who will support it?** The people who have run newer macOS on dropped Macs for a decade have not shipped 27 on Intel and have lost three developers this year.
+
+*Revised 8 November 2026.* This paragraph used to end "a support base of one,"
+and that is no longer accurate. There is an active AI-assisted wave in this
+space: a maintained NVIDIA Metal driver for Intel macOS with four figures of
+commits, macOS 27 booted on a Snapdragon laptop, macOS 27.2 booted on an RK3588
+board from a copied Apple system partition. But look at what they are. Every one
+of them runs Apple's **arm64** code on **ARM** hardware, or wraps a vendor's own
+open-source driver. Not one is macOS 27 on Intel. They are also, by the
+assessment of the people who did the underlying work, downstream of a decade of
+human reverse engineering rather than a replacement for it, and they carry no
+security updates. The correct sentence is not "a support base of one." It is
+that the thing being asked for here is the one nobody in that wave has done, and
+that none of what they have done arrives patched.
 
 Behind those four reasons there is one more, and it is the one that would have decided it alone. The T2's job is to verify what boots and to keep the system volume sealed. The only road to a foreign kernel runs straight through turning that off. This machine does legal work. A machine with verified boot and system integrity switched off is a machine I cannot honestly call secured, and that is not discomfort. It is an obligation.
 
@@ -75,13 +120,66 @@ So the question "for what?" has a plain answer. You would give up verified boot 
 
 No. I doubt impossible showed up to work today.
 
-The precise statement is narrower and harsher. It is not feasible for anyone with the tools and data that exist. There are three ways past the wall in section 2:
+The precise statement is narrower and harsher. It is not feasible for anyone with the tools and data that exist.
 
-1. **Rebuild the 33 drivers from source.** A driver compiled from source links from address zero, because it was never in a collection. Darwin source covers part of what the 33 contain. How much is actually buildable from published source is unknown and is the first thing anyone reopening this should check. Most of it, I expect, is not there.
-2. **Recover the relocations.** The collection keeps chained fixups for its own layout, and the format is known. Whether a better walk can recover the per-driver attribution is open. The tool that produced the 244 figure has a defect of its own, so 244 is the best available number, not a proven minimum. This is more likely to raise the count than reach zero.
-3. **Write the drivers.** That is an effort on the scale of putting Linux on Apple silicon, done in reverse, against closed interfaces, by a team, over years. And every Apple point release would break it again.
+*Revised 8 November 2026, following the correction in section 2.* These were
+written as three ways past a wall of thirty-three drivers. The wall is one
+driver, so the list is shorter and sharper than it was:
 
-The second design, Tahoe's kernel with 27.2's userspace, has no wall of this kind. It has three format questions instead: whether 27.2's programs call system services Tahoe's kernel implements the same way, whether Tahoe's sandbox accepts 27.2's compiled profiles, and whether Tahoe's file-integrity check accepts 27.2's signatures. None can be answered by reading symbols. Each fails closed. And even if all three went the right way, it would prove that the applications moved, not that a 27 kernel boots Intel. It still requires an unsealed system, so it is still the same line.
+0. **Get the bundles back.** For 32 of the 33, this is the whole answer and it
+   is a download. Apple's Kernel Debug Kit for the Tahoe build this Mac ran
+   carries them as ordinary `.kext` bundles. That is not a route past the wall;
+   it is the recognition that for those drivers there was never a wall.
+1. **Find an unlinked `AppleCyrus`, or rebuild it from source.** A driver
+   compiled from source links from address zero because it was never in a
+   collection. But this is the T2's SEP driver and it is closed, and the Kernel
+   Debug Kit is the only place an unlinked copy would ship. We looked in three
+   and it was in none of them. Worth noting that the one genuinely successful
+   driver project in this space right now — a Metal driver for NVIDIA cards on
+   Intel macOS — works precisely because the kernel side had published source to
+   compile. Source is what wins. We do not have it here.
+2. **Recover the relocations.** Still open, and now needed for exactly one file
+   instead of thirty-three. The collection keeps chained fixups for its own
+   layout and the format is known. The tool that produced the 244 figure has a
+   defect of its own, so 244 is the best available number, not a proven minimum.
+   This is more likely to raise the count than reach zero.
+3. **Boot without it.** Untested and cheap to test. `AppleCyrus` is the SEP and
+   slave-processor driver; the NVMe disk, ACPI, SMC and USB host are separate
+   drivers that all link. A first boot without it should reach `launchd` and the
+   window server with Touch ID and Secure Enclave services missing. A hang
+   naming `IOSlaveProcessor` or `AppleSEPManager` would mean it was required
+   after all. This is now the shortest unanswered question in the project.
+4. **Write the drivers.** That is an effort on the scale of putting Linux on
+   Apple silicon, done in reverse, against closed interfaces, by a team, over
+   years. And every Apple point release would break it again.
+
+The second design, Tahoe's kernel with 27.2's userspace, has no wall of this kind. It has three format questions instead: whether 27.2's programs call system services Tahoe's kernel implements the same way, whether Tahoe's sandbox accepts 27.2's compiled profiles, and whether Tahoe's file-integrity check accepts 27.2's signatures. None can be answered by reading symbols. Each fails closed. And even if all three went the right way, it would prove that the applications moved, not that a 27 kernel boots Intel.
+
+*Revised 8 November 2026.* The sentence that followed said this design "still
+requires an unsealed system, so it is still the same line." That is true only of
+the version where 27.2's programs and frameworks are installed over Tahoe's, in
+`/System`. It is not true of the smaller version, and the smaller version is the
+one worth doing: take a single macOS 27 program that is already built for Intel,
+and run it on a stock, sealed Tahoe exactly as it comes. If every function it
+calls exists in Tahoe's libraries, it runs. Nothing is disabled, nothing is
+unsealed, no administrator password is involved, and the signature and sandbox
+profile being evaluated are Apple's own, on an Apple system, unmodified — which
+is to say the three format questions above are answered by Apple rather than
+asked of us. Section 5's compatibility line already permits exactly this.
+
+What we do not know is which programs those are, and we never measured it. Every
+link check in this project runs in the transplant direction: Tahoe's Intel
+programs, dumped on the Mac, looked up in the exports of 27.2's x86_64
+libraries. That answers whether 27.2 can host what we borrow from Tahoe. The
+question here is the reverse — 27.2's Intel programs looked up in Tahoe's
+libraries, program by program — and it swaps both sides of the check, so it is
+new work rather than a re-run. The import side can be dumped in CI from the 27.2
+payload these workflows already fetch; the export side needs Tahoe's x86_64
+cache. It needs no Apple software in any repository, it writes nothing to any
+machine, and its output is the list of macOS 27 features this Mac can actually
+have. That measurement is the next piece of work.
+
+*10 November 2026: it is done. Section 5 has the result.*
 
 Here is the map. If you can get past section 2 with data that is not in the files, show your work.
 
@@ -98,6 +196,80 @@ The version string itself was tested rather than assumed. It cannot be changed w
 **Compatibility, with a written line.** The useful part of this project for other 2019 owners is getting specific software to run that refuses to. The line is this: fixes are per application and in user space. A version check in an app's own files, a wrapper, a shim that ships with the app. Nothing system-wide. Nothing that needs SIP off. If a fix needs SIP off, it is not a compatibility fix. It is the Golden Fleece route again, and it is out.
 
 **One accounting I have not done.** What would 27 actually give this machine? Most of what Apple showed needs Apple silicon anyway. If the prize was small even on paper, that belongs in this paper too. Someone should do that count. It may be me.
+
+*8 November 2026: that count now has a method.* Section 4 describes it — check
+27.2's Intel programs against Tahoe's libraries, the reverse of every check
+published here.
+Every program that comes back clean is a macOS 27 feature this Mac can have
+today, inside the line written in the paragraph above: per application, in user
+space, nothing system-wide, nothing that needs SIP off. Every program that comes
+back dirty is the measurement of what was never on offer. The answer is the
+accounting, and it costs nothing but a workflow run.
+
+*10 November 2026: the count.* macOS 27.2 has 5,279 executables and libraries in
+its system payload. 4,075 of them still carry Intel code. We read what every one
+of those asks of the system — 538,470 function references in all — and looked
+each up in the Intel libraries of a stock Tahoe 26.7.2 (25G332).
+
+| | |
+|---|---:|
+| Intel files in macOS 27.2 | 4,075 |
+| checked | 4,072 |
+| every function they need exists in Tahoe | **3,072** |
+| something is genuinely missing | 551 |
+| could not be judged | 449 |
+
+So three quarters of macOS 27's Intel code would load on this Mac today, sealed
+and untouched. That sounds like a prize. It is not, and the reason is in what
+the 3,072 are.
+
+They are the plumbing. 371 of the 406 tools in `/usr/bin`. Background services.
+877 files inside frameworks. **No application under `/System/Applications` has
+Intel code at all** — not one of them even reached the check. The whole list
+contains three applications, and they are `Installer`, `Automator Installer` and
+`iOS App Installer`.
+
+That is the accounting. Apple still compiles most of macOS 27 for Intel, and
+what it compiles is the part nobody sees. The applications are in the part it
+did not compile. **The prize was small on paper, and it is small in the files.**
+
+Why the 551 fail is worth stating exactly, because the easy story is wrong. I
+expected the answer to be Apple Intelligence — features this hardware could
+never run. That is part of it and not most of it:
+
+| what is missing | files |
+|---|---:|
+| functions macOS 27 added to libraries Tahoe already has | 302 |
+| a whole library that Tahoe's cache does not hold | 189 |
+| both | 60 |
+
+The largest cause is ordinary drift: `Foundation`, `Security`, `AppKit`,
+`CloudKit` and the rest gained functions in a year, and 27's programs call them.
+Of the 157 libraries Tahoe lacks outright, about two in five are, by their
+names, Apple Intelligence, Siri and App Intents; the rest are a spread —
+DriverKit, Braille support, device management, Safari, diagnostics.
+
+Four limits, because a number without them is the kind of claim this paper has
+already had to withdraw once.
+
+*449 could not be judged.* 276 are plug-ins — Perl modules and Apache modules —
+that take their functions from the program that loads them, not from the
+system, so this check has nothing to compare them with. 172 record no function
+references at all. One depends on a library nobody could place.
+
+*It is a floor.* The check looked in Tahoe's shared library cache. Some
+libraries are never in that cache; they are ordinary files — Perl's, Tcl's,
+DriverKit's. Nobody has yet looked for those on Tahoe's disk, and at least 17 of
+the 551, `perl` among them, fail for that reason alone.
+
+*Some of the 3,072 are only partly checked.* 53 of them have function
+references the check could not trace to any library. On everything it could
+trace they are clean.
+
+*Nothing was run.* This proves a function exists by name. It does not prove it
+behaves the same, or that a program will not look at the version number and
+refuse. And I have not counted how many of the 3,072 differ in any way that
+matters from the copy Tahoe already ships.
 
 **Nothing of Apple's ships with this.** No wallpaper, icon, or sound from macOS 27. Original art in the same spirit is fine; Apple's assets are not ours to distribute.
 
@@ -145,6 +317,18 @@ It also rules three things out. Not the SSD: Linux used it throughout, and it re
 
 Some will say we just could not figure it out. In the narrow sense they are right: nothing booted, and I am not offended. But "could not figure it out" and "found the exact wall and documented why it holds" are different things, and the second one is in this paper with hashes. The commentators said there was no Intel kernel. There is one. The best-resourced team in this space has not done it and is shrinking. The map is in section 4. Humble about the outcome, firm about the evidence.
 
+*Added 8 November 2026.* Since this was written there has been a visible burst of
+AI-assisted work in this field, and it is worth being precise about what it did
+and did not do. macOS 27 on a Snapdragon laptop. macOS 27.2 on an RK3588 board,
+booted from real firmware off a copied Apple system partition. An NVIDIA Metal
+driver for Intel macOS. Every one of those is either Apple's own arm64 code
+running on ARM hardware, or a wrapper around a vendor's published open source.
+None of them is macOS 27 on Intel, and none of them had to assemble an operating
+system out of the partial remains of one. We picked the problem on that list
+that nobody has solved. The outcome here is still a failure to boot, and that is
+the honest headline. But the shape of the work was not naive, and the record
+shows where it actually stopped.
+
 And one contrast that is the whole credibility of this paper. Early in the project a mock-up screenshot showed "macOS 27.2 Golden Gate" on this machine. It was made with AI, and it was never real. What is on the machine now says, in its own About panel, that it is a label and not a version. That is the difference between the project we started and the one we are finishing.
 
 ---
@@ -162,9 +346,18 @@ Everything below is a size, a hash, a symbol count, or a log line. No Apple bina
 | WindowServer and loginwindow link | 0 required misses each · Finder 3 · Dock 4 | measured |
 | Only two driver symbols in 12,887 fail | one shimmed, one a weak import Tahoe itself leaves unresolved | measured |
 | A kernel collection can be built without root | 25 entries · 26,132,480 B · sha256 `a1179078…0d408abc` · exit 0 | measured |
+| **A mixed 27.2 + Tahoe collection links, from bundles** | `c9980cd`: boot 54,870,016 B / 118 ids · sys 38,830,080 B / 65 ids · 183 ids total · reproduced byte-identically | measured |
+| **`AppleCyrus` is the only requested driver that would not link** | 116 of 182 in boot, 65 in sys, none in both, one absent | measured |
+| **`AppleCyrus` ships in no Kernel Debug Kit** | absent from 26B118, from the 26B123 tree, and from 25G241's 905 kext directories | measured |
 | All 33 Tahoe drivers can be recovered from the live system | 33 recovered, 0 missing, all x86_64 | measured |
-| A carved driver cannot enter a 27.2 collection | *Has load address* on every candidate, dependencies satisfied | measured |
-| The missing data cannot be reconstructed | 244 of 335 pointer sites in the first candidate have no recoverable target | measured |
+| A **carved** driver cannot enter a 27.2 collection | *Has load address* on every candidate, dependencies satisfied | measured |
+| The missing data cannot be reconstructed **for a carve** | 244 of 335 pointer sites in the first candidate have no recoverable target | measured |
+| ~~Tahoe's drivers cannot be moved into a 27.2 collection~~ | **withdrawn 8 Nov 2026** — true only of carves; see section 2 | retracted |
+| **Most of 27.2's Intel code links against stock Tahoe** | 10 Nov 2026 · 4,072 Intel files · 538,470 imports · 3,072 with nothing missing · 551 with something missing · 449 not judged · target 26.7.2 (25G332) | measured, a floor |
+| **No bundled macOS 27 application has Intel code** | 0 Intel files under `/System/Applications`; three installer applications elsewhere, all clean | measured |
+| Why the 551 fail | 302 on functions added to libraries Tahoe has · 189 on a library absent from Tahoe's cache · 60 on both | measured |
+| What Tahoe lacks outright | 157 required libraries absent from its shared cache; about 66 are Apple Intelligence, Siri or App Intents by name; 18 are plain files never looked for on disk | measured, grouping by name |
+| Any of those 3,072 actually runs on Tahoe | none has been executed | unknown |
 | The loop was caused by T2-persistent state from a change during an update | every Apple image failed; two revives changed nothing; a restore fixed it; no command log exists | inferred |
 | A mixed collection would have booted | never attempted to completion | unknown |
 
