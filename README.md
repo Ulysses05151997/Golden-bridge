@@ -16,15 +16,17 @@ Not today, and not without giving up the Mac's security. Most of macOS 27.2 is s
 | Early boot programs | 3,584 imports, 0 required misses |
 | Driver connections | 12,887 symbols; only 2 do not resolve |
 | Kernel collection | Built. 183 entries from 27.2 and Tahoe code, both collections written, reproduced byte-for-byte |
+| macOS 27.2's own Intel code, against stock Tahoe | 3,072 of 4,072 files find every function they need in Tahoe's libraries. No application in `/System/Applications` is among them: none has Intel code |
 | **The wall** | One driver. `AppleCyrus`, the T2's own, ships only inside a collection Apple has already linked, and cannot be relinked into a new one. No unlinked copy exists in any Kernel Debug Kit. |
 
 Nothing we built ever booted. Every figure is a measurement of a file, not of a system that ran.
 
 > **Correction, 8 November 2026.** Version 1.0 of this page and of the position
 > paper said the wall was that *drivers taken from macOS 26 cannot be placed in
-> a 27.2 kernel collection*. That is wrong, and our own
-> [handoff notes](https://github.com/Ulysses05151997/golden-fleece/blob/main/docs/HANDOFF.md)
-> disprove it: 32 of the 33 borrowed Tahoe drivers linked cleanly from their
+> a 27.2 kernel collection*. That is wrong, and our own build records disprove
+> it (the rows dated 8 November in the
+> [position paper's appendix](POSITION-PAPER.md#appendix-evidence)):
+> 32 of the 33 borrowed Tahoe drivers linked cleanly from their
 > ordinary `.kext` bundles, in a 183-entry collection, twice. The one that
 > cannot be moved is `AppleCyrus`. The rebuild that produced the "wall" happened
 > after a DFU restore had destroyed the Kernel Debug Kits on the machine, so it
@@ -71,13 +73,36 @@ macOS 27 *programs* will run on it. A program that is already built for Intel
 and uses only functions Tahoe already has will simply run, with nothing
 disabled, nothing unsealed and no administrator password.
 
-We do not yet know which programs those are, and nobody has measured it. Every
-check we published runs the other way round: Tahoe's Intel programs looked up in
-macOS 27.2's libraries, which is the question a transplant asks. The run that
-answers this one goes in reverse — 27.2's Intel programs looked up in **Tahoe's**
-libraries — and it is the next thing we are building. It needs no Apple software
-in this repository and it cannot harm a machine: it reads symbol names and
-prints a list.
+**Measured, 10 November 2026.** We took every file in macOS 27.2 that carries
+Intel code — 4,075 of the 5,279 executables and libraries in the release — and
+looked up every function each one asks for in the libraries of a stock Tahoe
+26.7.2. This is the reverse of every other check we published, which asked
+whether macOS 27 could host Tahoe's programs.
+
+| | |
+|---|---:|
+| Intel files checked | 4,072 |
+| every function found in Tahoe | **3,072** |
+| something genuinely missing | 551 |
+| could not be judged | 449 |
+
+Three quarters of it would load. And almost none of it is anything you would
+notice. It is the plumbing: command-line tools, background services, the
+working parts of frameworks. **Not one application in `/System/Applications`
+has Intel code at all.** The only applications on the list are three
+installers.
+
+So the honest answer to *what would macOS 27 give this Mac?* is: very little
+you could see. Apple still builds most of macOS 27 for Intel, and what it builds
+is the part underneath. Section 5 of the paper has the count, including why the
+551 fail — mostly ordinary drift, functions macOS 27 added to libraries Tahoe
+already has.
+
+Three limits on that number. It is a floor: the check looked in Tahoe's shared
+library cache and not yet at library files on its disk, and at least 17 of the
+551 fail for that reason alone. 53 of the 3,072 have some function calls the
+check could not trace to a library. And nothing was run — matching names is not
+the same as working.
 
 Anything that list says will not run unmodified stays out unless it can be fixed
 inside a single application bundle. A fix that needs the system volume unsealed
