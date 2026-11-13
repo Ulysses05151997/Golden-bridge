@@ -108,6 +108,20 @@ Anything that list says will not run unmodified stays out unless it can be fixed
 inside a single application bundle. A fix that needs the system volume unsealed
 is not a fix. It is the road above, with the same gate at the end.
 
+## Other people's work worth knowing about
+
+Three projects that appeared while this was being written. We read their source
+on 12 November 2026 and ran none of them; the paper says what we checked.
+
+- **[Stela](https://github.com/tylertms/Stela)** boots Apple-silicon macOS on an
+  ordinary PC by translating it, instead of using Apple's Intel code. It is the
+  road this project did not take. Not for a T2 MacBook Pro: it requires an
+  NVIDIA card and Secure Boot off. Section 4.
+- **[Overtime](https://github.com/0xfel1x/overtime-x86)** lets an Intel Mac keep
+  building apps against the newest SDK. User space only. Section 5.
+- **[rebar](https://github.com/OverlordDev/rebar)** runs Apple-silicon programs
+  on an Intel Mac, one program at a time, in user space. Section 5.
+
 ---
 
 By Ulysses Isa, with Grok (xAI) and Claude (Anthropic). November 2026.
