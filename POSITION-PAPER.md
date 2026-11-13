@@ -110,6 +110,12 @@ security updates. The correct sentence is not "a support base of one." It is
 that the thing being asked for here is the one nobody in that wave has done, and
 that none of what they have done arrives patched.
 
+*Corrected 12 November 2026.* "Not one is macOS 27 on Intel" is no longer safe
+to say. A public project, Stela, now sets out to do exactly that, by a route
+this paper had not listed: it does not use Apple's Intel code at all, it
+translates the Apple-silicon system as it runs. Section 4 describes it. What
+stands of the paragraph above is its last clause. None of it arrives patched.
+
 Behind those four reasons there is one more, and it is the one that would have decided it alone. The T2's job is to verify what boots and to keep the system volume sealed. The only road to a foreign kernel runs straight through turning that off. This machine does legal work. A machine with verified boot and system integrity switched off is a machine I cannot honestly call secured, and that is not discomfort. It is an obligation.
 
 So the question "for what?" has a plain answer. You would give up verified boot and system integrity for an operating system that runs worse and never gets patched. Put the two routes side by side and they are mutually exclusive: the Golden Fleece route requires updates off, and the Tahoe route requires updates on. That sentence does more work than any measurement in this paper.
@@ -181,6 +187,36 @@ have. That measurement is the next piece of work.
 
 *10 November 2026: it is done. Section 5 has the result.*
 
+*Added 12 November 2026: the route this list did not have.* Everything above
+assumes the Intel code Apple still ships is the material to work with.
+There is another way to get macOS 27 onto an Intel processor, and it ignores
+that code entirely: run the Apple-silicon system and translate it.
+
+[Stela](https://github.com/tylertms/Stela) is that. It is a boot program for
+ordinary x86-64 PCs with an arm64-to-x86 translator, a Metal driver for NVIDIA
+graphics cards and a model of Apple-silicon hardware; it presents itself to the
+system as an M2 Mac mini, and its source names macOS 26 and macOS 27.2. I read
+it on 12 November. It is one month old, the work of essentially one author, and
+about 1.85 million lines of Rust, 400 commits of it in the two days before I
+looked. Its own README says it "is slow and still may not boot on supported
+hardware", and every one of its 31 issues, all opened in those same two days,
+is a machine it did not boot on. I found no report of a desktop reached, and
+would not expect an issue tracker to carry one.
+
+It is not a route for this Mac, for reasons that are in its code and not a
+matter of opinion. It stops without an NVIDIA GTX 16 or RTX card — the message
+it prints names an AMD adapter as not enough, and this Mac's graphics are AMD
+and Intel. It needs Secure Boot off and a start from a USB stick, which on a T2
+Mac is the kind of change section 6 is about. And nothing in it knows the T2 is
+there.
+
+But it changes the shape of the map. The wall in section 2 is a wall on one
+road. Translation is a second road with different walls: speed, a graphics
+driver for each vendor, a model of hardware Apple does not document. Whoever
+gets a daily-usable macOS 27 onto Intel may well get there that way and never
+touch a kernel collection. I would rather say so here than have someone find it
+missing.
+
 Here is the map. If you can get past section 2 with data that is not in the files, show your work.
 
 ---
@@ -194,6 +230,43 @@ The version string itself was tested rather than assumed. It cannot be changed w
 **The skin stays a skin.** Apple committed to security updates for Intel Macs for three years from Tahoe's release in the fall of 2025, which runs to roughly the fall of 2028. Those updates install only on a sealed system. Anything that needs the seal broken costs two years of patches, and the one time we played with the layer underneath, it did far more harm than good. That is the whole reason this stops at paint.
 
 **Compatibility, with a written line.** The useful part of this project for other 2019 owners is getting specific software to run that refuses to. The line is this: fixes are per application and in user space. A version check in an app's own files, a wrapper, a shim that ships with the app. Nothing system-wide. Nothing that needs SIP off. If a fix needs SIP off, it is not a compatibility fix. It is the Golden Fleece route again, and it is out.
+
+*Added 12 November 2026: two tools on the right side of that line.* Both
+appeared this month, both are small enough to read, and I read the parts that
+touch the machine. I have run neither.
+
+[Overtime](https://github.com/0xfel1x/overtime-x86) is for people who build
+software. Apple's newest Xcode installs only on Apple silicon, so an Intel Mac
+can no longer build against the macOS 27 SDK. Overtime takes the SDKs out of the
+new Xcode, adjusts local copies so the older Xcode that still runs on Intel
+accepts them, and installs the matching open-source Swift compiler from
+swift.org, checking its signature first. Its scripts use no `sudo`, change no
+security setting and write nothing under `/System`. What it does change is your
+installed Xcode, in place, and it has a switch that puts that back. One day old
+when I read it; tested by its author on Sequoia, with Tahoe listed as supported.
+
+[rebar](https://github.com/OverlordDev/rebar) is Rosetta in the other
+direction: it runs Apple-silicon programs on an Intel Mac, as an ordinary
+program you build from source. It translates the program's arm64 code and hands
+its system calls to the Mac's own Intel libraries. Run directly on one program,
+it changes nothing on disk. It also has a mode that rewrites applications so
+they start by themselves, and that mode alters and re-signs each one; I would
+treat it as a separate decision. Its author reports third-party applications
+starting under it, at roughly a third of native speed on raw computation, on
+macOS 26.7, the release line this Mac runs, though on a PC rather than a Mac.
+Eight days old when I read it.
+
+rebar matters to the count below more than its size suggests. The count's
+flattest result is that no macOS 27 application has Intel code, so on this Mac
+they do not start, and no amount of library-checking changes that. A translator
+that borrows the host's libraries makes it a live question again, and the same
+question: does Tahoe have every function the program asks for? The check that
+produced the count can ask it of the Apple-silicon half of macOS 27. That run is
+prepared and has not been made. Two cautions before anyone reads much into it.
+Apple's own programs are built with pointer authentication, which rebar passes
+over rather than implements, and its successes so far are other people's
+applications. And a program running under a translator is not running as
+itself: whatever depends on its own signature or sandbox is a different matter.
 
 **One accounting I have not done.** What would 27 actually give this machine? Most of what Apple showed needs Apple silicon anyway. If the prize was small even on paper, that belongs in this paper too. Someone should do that count. It may be me.
 
@@ -329,6 +402,12 @@ that nobody has solved. The outcome here is still a failure to boot, and that is
 the honest headline. But the shape of the work was not naive, and the record
 shows where it actually stopped.
 
+*Corrected 12 November 2026.* "None of them is macOS 27 on Intel" needs the
+same correction as section 3. Stela is an attempt at exactly that, by
+translation. It does not assemble anything out of Apple's Intel remains, which
+is the problem this paper is about, and I could not establish that it reaches a
+desktop. But the sentence as written claims more than I can now support.
+
 And one contrast that is the whole credibility of this paper. Early in the project a mock-up screenshot showed "macOS 27.2 Golden Gate" on this machine. It was made with AI, and it was never real. What is on the machine now says, in its own About panel, that it is a label and not a version. That is the difference between the project we started and the one we are finishing.
 
 ---
@@ -360,6 +439,14 @@ Everything below is a size, a hash, a symbol count, or a log line. No Apple bina
 | Any of those 3,072 actually runs on Tahoe | none has been executed | unknown |
 | The loop was caused by T2-persistent state from a change during an update | every Apple image failed; two revives changed nothing; a restore fixed it; no command log exists | inferred |
 | A mixed collection would have booted | never attempted to completion | unknown |
+
+**Outside projects referred to in sections 4 and 5.** Read from source on 12 November 2026 at the commit given. None was built or run for this paper.
+
+| Project | Repository | Read at | Checked in its source | Its own claim, not reproduced |
+|---|---|---|---|---|
+| Stela | https://github.com/tylertms/Stela | `124ec85` | refuses to start without an NVIDIA GPU; no handling of the T2; names macOS 26 and 27.2 | boots Apple-silicon macOS on x86-64 PCs |
+| Overtime | https://github.com/0xfel1x/overtime-x86 | `6d61794` | no `sudo`, no security settings; downloads only from Apple and swift.org; modifies Xcode in place, reversibly | builds and runs macOS apps against the 27.2 SDK on an Intel Mac |
+| rebar | https://github.com/OverlordDev/rebar | `4b233da` | plain mode writes nothing; the wrapper rewrites and re-signs apps and skips arm64e; one administrator prompt, to take ownership of an app | third-party arm64 apps start; about 2.9× native on compute kernels |
 
 **Machine:** MacBookPro16,1 · Intel Core i7-9750H · 64 GB · Apple T2.
 **Host OS now:** macOS 26.7.2 (25G332), SIP enabled, Authenticated Root enabled, system snapshot sealed.
